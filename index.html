@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/build/three.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#000000',
+                        secondary: '#ffffff',
+                        accent: '#666666'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .border-right {
+                border-right-width: 1px;
+            }
+            .border-bottom {
+                border-bottom-width: 1px;
+            }
+            .transition-all {
+                transition-property: all;
+                transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+                transition-duration: 150ms;
+            }
+        }
+    </style>
+    <style>
+        body {
+            background-color: #000000;
+            color: #ffffff;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        .control-panel {
+            background-color: #111111;
+            border: 1px solid #333333;
+        }
+        .slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            background: #333333;
+            outline: none;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #ffffff;
+            cursor: pointer;
+        }
+        .slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #ffffff;
+            cursor: pointer;
+        }
+        .button {
+            background-color: #222222;
+            border: 1px solid #444444;
+            transition: all 0.2s ease;
+        }
+        .button:hover {
+            background-color: #333333;
+        }
+        .button:active {
+            background-color: #444444;
+        }
+        .input-field {
+            background-color: #222222;
+            border: 1px solid #444444;
+            color: #ffffff;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #666666;
+        }
+        #visualizer-container {
+            width: 100%;
+            height: 100%;
+        }
+        #settings-btn i {
+            opacity: 0;
+        }
+        #settings-btn:hover i {
+            opacity: 1;
+        }
+        .hidden {
+            display: none !important;
+        }
+        * {
+            transition: none !important;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Left Panel - Audio Controls -->
+        <div id="left-panel" class="w-80 border-r border-gray-800 flex flex-col">
+            <div class="p-4 border-b border-gray-800">
+                <h1 class="text-xl font-bold">Audio Visualizer</h1>
+                <p class="text-sm text-gray-400">3D Audio Spectrum Visualization</p>
+            </div>
+            
+            <!-- Audio Source Selection -->
+            <div class="p-4 border-b border-gray-800">
+                <h2 class="text-lg font-semibold mb-3">Audio Source</h2>
+                
+                <!-- Audio Source Type -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Source Type</label>
+                    <select id="audio-source-type" class="input-field w-full py-2 px-3 text-sm">
+                        <option value="file">Audio File / URL</option>
+                        <option value="microphone">Microphone</option>
+                        <option value="system">System Audio (Screen Capture)</option>
+                    </select>
+                </div>
+                
+                <!-- File Upload -->
+                <div id="file-source-section" class="mb-4">
+                    <label class="block text-sm font-medium mb-1">Upload Audio File</label>
+                    <div class="flex">
+                        <input type="file" id="audio-file" accept="audio/*" class="hidden">
+                        <button id="upload-btn" class="button flex-1 py-2 px-3 text-sm flex items-center justify-center">
+                            <i class="fa fa-upload mr-2"></i> Browse Files
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- URL Input -->
+                <div id="url-source-section" class="mb-4">
+                    <label for="audio-url" class="block text-sm font-medium mb-1">Audio URL</label>
+                    <div class="flex">
+                        <input type="text" id="audio-url" placeholder="https://example.com/audio.mp3" class="input-field flex-1 py-2 px-3 text-sm">
+                        <button id="load-url-btn" class="button ml-2 py-2 px-3 text-sm">
+                            <i class="fa fa-play"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Live Source Button -->
+                <div id="live-source-section" class="hidden mb-4">
+                    <button id="start-live-btn" class="button w-full py-2 px-3 text-sm flex items-center justify-center">
+                        <i class="fa fa-microphone mr-2"></i> Start Capture
+                    </button>
+                    <button id="stop-live-btn" class="button w-full py-2 px-3 text-sm flex items-center justify-center mt-2 hidden">
+                        <i class="fa fa-stop mr-2"></i> Stop Capture
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Playback Controls -->
+            <div class="p-4 border-b border-gray-800">
+                <h2 class="text-lg font-semibold mb-3">Playback</h2>
+                
+                <!-- Play/Pause Button -->
+                <div class="flex justify-center mb-4">
+                    <button id="play-btn" class="button w-16 h-16 rounded-full flex items-center justify-center text-xl" disabled>
+                        <i class="fa fa-play"></i>
+                    </button>
+                </div>
+                
+                <!-- Progress Bar -->
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                        <span id="current-time">0:00</span>
+                        <span id="duration">0:00</span>
+                    </div>
+                    <input type="range" id="progress-bar" class="slider" min="0" max="100" value="0" disabled>
+                </div>
+                
+                <!-- Volume Control -->
+                <div>
+                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>Volume</span>
+                        <span id="volume-value">100%</span>
+                    </div>
+                    <input type="range" id="volume-slider" class="slider" min="0" max="100" value="100">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Center - Visualization -->
+        <div class="flex-1 relative">
+            <div id="visualizer-container"></div>
+            <!-- Settings Button -->
+            <button id="settings-btn" class="absolute top-4 right-4 w-10 h-10 bg-black bg-opacity-50 flex items-center justify-center text-white z-20">
+                <i class="fa fa-cog"></i>
+            </button>
+        </div>
+        
+        <!-- Right Panel - Visualization Controls -->
+        <div id="right-panel" class="w-80 border-l border-gray-800 control-panel flex flex-col">
+            <div class="p-4 border-b border-gray-800">
+                <h2 class="text-lg font-semibold">Visualization Controls</h2>
+            </div>
+            
+            <!-- Rotation Controls -->
+            <div class="p-4 border-b border-gray-800">
+                <h3 class="text-md font-medium mb-3">Rotation</h3>
+                
+                <!-- Direction Control -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">Direction</label>
+                    <select id="rotation-direction" class="input-field w-full py-2 px-3 text-sm">
+                        <option value="1">Clockwise</option>
+                        <option value="-1">Counterclockwise</option>
+                    </select>
+                </div>
+                
+                <!-- Speed Control -->
+                <div>
+                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>Speed</span>
+                        <span id="rotation-speed-value">1.0</span>
+                    </div>
+                    <input type="range" id="rotation-speed" class="slider" min="0.1" max="3" step="0.1" value="1">
+                </div>
+            </div>
+            
+            <!-- Visualization Parameters -->
+            <div class="p-4 border-b border-gray-800">
+                <h3 class="text-md font-medium mb-3">Parameters</h3>
+                
+                <!-- Dot Count -->
+                <div class="mb-4">
+                    <label for="dot-count" class="block text-sm font-medium mb-1">Dot Count</label>
+                    <input type="number" id="dot-count" min="50" max="2000" step="50" value="500" class="input-field w-full py-2 px-3 text-sm">
+                </div>
+                
+                <!-- Sphere Size -->
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>Sphere Size</span>
+                        <span id="sphere-size-value">100</span>
+                    </div>
+                    <input type="range" id="sphere-size" class="slider" min="50" max="200" value="100">
+                </div>
+                
+                <!-- Dot Size -->
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>Dot Size</span>
+                        <span id="dot-size-value">0.1</span>
+                    </div>
+                    <input type="range" id="dot-size" class="slider" min="0.1" max="5" step="0.1" value="0.1">
+                </div>
+                
+                <!-- Sensitivity -->
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>Sensitivity</span>
+                        <span id="sensitivity-value">1.0</span>
+                    </div>
+                    <input type="range" id="sensitivity" class="slider" min="0.1" max="5" step="0.1" value="1">
+                </div>
+                
+                <!-- Hide Front Half -->
+                <div class="mb-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium">Hide Front Half</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="hide-front-half" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-500"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Performance Info -->
+            <div class="p-4">
+                <h3 class="text-md font-medium mb-3">Performance</h3>
+                <div>
+                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                        <span>FPS</span>
+                        <span id="fps-value">60</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, audioListener, audioContext, analyser, dataArray;
+        let sphereGroup, dots = [];
+        let audio, source;
+        let isPlaying = false;
+        let rotationSpeed = 1;
+        let rotationDirection = 1;
+        let sphereSize = 100;
+        let dotSize = 0.1;
+        let dotCount = 500;
+        let sensitivity = 1;
+        let hideFrontHalf = false;
+        let animationFrameId;
+        let mediaStream = null;
+        let streamSource = null;
+        let isLiveSource = false;
+        let lastFrameTime = 0;
+        let frameCount = 0;
+        let lastFPSUpdate = 0;
+        let lastFrequencyUpdate = 0;
+
+        function init() {
+            initThreeJS();
+            initAudio();
+            createVisualization();
+            setupEventListeners();
+            animate();
+        }
+
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            
+            const container = document.getElementById('visualizer-container');
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            
+            camera = new THREE.PerspectiveCamera(75, containerWidth / containerHeight, 0.1, 1000);
+            camera.position.z = 300;
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(containerWidth, containerHeight);
+            renderer.setClearColor(0x000000, 1);
+            
+            container.appendChild(renderer.domElement);
+            
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            audioListener = new THREE.AudioListener();
+            camera.add(audioListener);
+            
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 2048;
+            analyser.smoothingTimeConstant = 0.8;
+            
+            const bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+        }
+
+        function createVisualization() {
+            sphereGroup = new THREE.Group();
+            scene.add(sphereGroup);
+            
+            createDots();
+        }
+
+        function createDots() {
+            dots.forEach(dot => sphereGroup.remove(dot));
+            dots = [];
+            
+            const goldenRatio = (1 + Math.sqrt(5)) / 2;
+            
+            for (let i = 0; i < dotCount; i++) {
+                const t = i / dotCount;
+                const inclination = Math.acos(1 - 2 * t);
+                const azimuth = 2 * Math.PI * i / goldenRatio;
+                
+                const x = sphereSize * Math.sin(inclination) * Math.cos(azimuth);
+                const y = sphereSize * Math.sin(inclination) * Math.sin(azimuth);
+                const z = sphereSize * Math.cos(inclination);
+                
+                const dotGeometry = new THREE.SphereGeometry(dotSize, 16, 16);
+                const dotMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                
+                const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+                dot.position.set(x, y, z);
+                
+                dot.userData = {
+                    originalPosition: new THREE.Vector3(x, y, z),
+                    originalSize: dotSize,
+                    frequencyIndex: Math.floor((i / dotCount) * (analyser.frequencyBinCount / 2))
+                };
+                
+                sphereGroup.add(dot);
+                dots.push(dot);
+            }
+        }
+
+        function animate() {
+            animationFrameId = requestAnimationFrame(animate);
+            const now = performance.now();
+            
+            if (sphereGroup) {
+                sphereGroup.rotation.x += 0.003 * rotationSpeed * rotationDirection;
+                sphereGroup.rotation.y += 0.005 * rotationSpeed * rotationDirection;
+            }
+            
+            if ((isPlaying || isLiveSource) && analyser) {
+                if (now - lastFrequencyUpdate >= 50) {
+                    analyser.getByteFrequencyData(dataArray);
+                    lastFrequencyUpdate = now;
+                }
+                
+                const sphereCenter = new THREE.Vector3();
+                sphereGroup.getWorldPosition(sphereCenter);
+                
+                const sphereToCamera = new THREE.Vector3();
+                sphereToCamera.subVectors(camera.position, sphereCenter).normalize();
+                
+                dots.forEach(dot => {
+                    const worldPos = new THREE.Vector3();
+                    dot.getWorldPosition(worldPos);
+                    
+                    const sphereToDot = new THREE.Vector3();
+                    sphereToDot.subVectors(worldPos, sphereCenter).normalize();
+                    
+                    const dotProduct = sphereToCamera.dot(sphereToDot);
+                    const isFrontHalf = dotProduct > 0;
+                    
+                    if (hideFrontHalf && isFrontHalf) {
+                        dot.visible = false;
+                    } else {
+                        dot.visible = true;
+                    }
+                    
+                    if (dot.visible) {
+                        const frequencyValue = dataArray[dot.userData.frequencyIndex];
+                        const normalizedFreq = frequencyValue / 255;
+                        const logFrequency = Math.pow(normalizedFreq, 0.2);
+                        const sizeMultiplier = 1 + (logFrequency * 15 * sensitivity);
+                        dot.scale.set(sizeMultiplier, sizeMultiplier, sizeMultiplier);
+                    }
+                });
+            } else if (!isPlaying && !isLiveSource) {
+                const sphereCenter = new THREE.Vector3();
+                sphereGroup.getWorldPosition(sphereCenter);
+                
+                const sphereToCamera = new THREE.Vector3();
+                sphereToCamera.subVectors(camera.position, sphereCenter).normalize();
+                
+                dots.forEach(dot => {
+                    const worldPos = new THREE.Vector3();
+                    dot.getWorldPosition(worldPos);
+                    
+                    const sphereToDot = new THREE.Vector3();
+                    sphereToDot.subVectors(worldPos, sphereCenter).normalize();
+                    
+                    const dotProduct = sphereToCamera.dot(sphereToDot);
+                    const isFrontHalf = dotProduct > 0;
+                    
+                    if (hideFrontHalf && isFrontHalf) {
+                        dot.visible = false;
+                    } else {
+                        dot.visible = true;
+                    }
+                    
+                    if (dot.visible) {
+                        dot.scale.set(1, 1, 1);
+                    }
+                });
+            }
+            
+            renderer.render(scene, camera);
+            
+            frameCount++;
+            if (now - lastFPSUpdate >= 1000) {
+                const fps = Math.round((frameCount * 1000) / (now - lastFPSUpdate));
+                document.getElementById('fps-value').textContent = fps;
+                frameCount = 0;
+                lastFPSUpdate = now;
+            }
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('visualizer-container');
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            
+            camera.aspect = containerWidth / containerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(containerWidth, containerHeight);
+        }
+
+        function setupEventListeners() {
+            document.getElementById('upload-btn').addEventListener('click', () => {
+                document.getElementById('audio-file').click();
+            });
+            
+            document.getElementById('audio-file').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const url = URL.createObjectURL(file);
+                    loadAudio(url);
+                }
+            });
+            
+            document.getElementById('load-url-btn').addEventListener('click', () => {
+                const url = document.getElementById('audio-url').value.trim();
+                if (url) {
+                    loadAudio(url);
+                }
+            });
+            
+            document.getElementById('play-btn').addEventListener('click', togglePlayPause);
+            
+            document.getElementById('progress-bar').addEventListener('input', (e) => {
+                if (audio) {
+                    const seekTime = (e.target.value / 100) * audio.duration;
+                    audio.currentTime = seekTime;
+                }
+            });
+            
+            document.getElementById('volume-slider').addEventListener('input', (e) => {
+                const rawValue = parseInt(e.target.value);
+                const clampedValue = Math.max(0, Math.min(100, rawValue));
+                const volume = clampedValue / 100;
+                document.getElementById('volume-value').textContent = `${clampedValue}%`;
+                
+                if (audio) {
+                    audio.volume = Math.max(0, Math.min(1, volume));
+                }
+            });
+            
+            document.getElementById('rotation-direction').addEventListener('change', (e) => {
+                rotationDirection = parseInt(e.target.value);
+            });
+            
+            document.getElementById('rotation-speed').addEventListener('input', (e) => {
+                rotationSpeed = parseFloat(e.target.value);
+                document.getElementById('rotation-speed-value').textContent = rotationSpeed.toFixed(1);
+            });
+            
+            document.getElementById('dot-count').addEventListener('change', (e) => {
+                dotCount = parseInt(e.target.value);
+                createDots();
+            });
+            
+            document.getElementById('sphere-size').addEventListener('input', (e) => {
+                sphereSize = parseInt(e.target.value);
+                document.getElementById('sphere-size-value').textContent = sphereSize;
+                
+                if (sphereGroup) {
+                    const scaleFactor = sphereSize / 100;
+                    sphereGroup.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                }
+            });
+            
+            document.getElementById('dot-size').addEventListener('input', (e) => {
+                dotSize = parseFloat(e.target.value);
+                document.getElementById('dot-size-value').textContent = dotSize.toFixed(1);
+                createDots();
+            });
+            
+            document.getElementById('sensitivity').addEventListener('input', (e) => {
+                sensitivity = parseFloat(e.target.value);
+                document.getElementById('sensitivity-value').textContent = sensitivity.toFixed(1);
+            });
+            
+            document.getElementById('hide-front-half').addEventListener('change', (e) => {
+                hideFrontHalf = e.target.checked;
+            });
+            
+            document.getElementById('audio-source-type').addEventListener('change', (e) => {
+                const sourceType = e.target.value;
+                stopCurrentAudio();
+                
+                if (sourceType === 'file') {
+                    document.getElementById('file-source-section').classList.remove('hidden');
+                    document.getElementById('url-source-section').classList.remove('hidden');
+                    document.getElementById('live-source-section').classList.add('hidden');
+                    document.getElementById('play-btn').disabled = true;
+                    document.getElementById('progress-bar').disabled = true;
+                } else {
+                    document.getElementById('file-source-section').classList.add('hidden');
+                    document.getElementById('url-source-section').classList.add('hidden');
+                    document.getElementById('live-source-section').classList.remove('hidden');
+                    document.getElementById('play-btn').disabled = true;
+                    document.getElementById('progress-bar').disabled = true;
+                    
+                    const startBtn = document.getElementById('start-live-btn');
+                    if (sourceType === 'microphone') {
+                        startBtn.innerHTML = '<i class="fa fa-microphone mr-2"></i> Start Capture';
+                    } else {
+                        startBtn.innerHTML = '<i class="fa fa-desktop mr-2"></i> Start Capture';
+                    }
+                }
+            });
+            
+            document.getElementById('start-live-btn').addEventListener('click', async () => {
+                const sourceType = document.getElementById('audio-source-type').value;
+                await startLiveCapture(sourceType);
+            });
+            
+            document.getElementById('stop-live-btn').addEventListener('click', stopLiveCapture);
+            
+            document.getElementById('settings-btn').addEventListener('click', () => {
+                const leftPanel = document.getElementById('left-panel');
+                const rightPanel = document.getElementById('right-panel');
+                
+                if (leftPanel.classList.contains('hidden')) {
+                    leftPanel.classList.remove('hidden');
+                    rightPanel.classList.remove('hidden');
+                } else {
+                    leftPanel.classList.add('hidden');
+                    rightPanel.classList.add('hidden');
+                }
+            });
+        }
+
+        function loadAudio(url) {
+            if (audio) {
+                audio.pause();
+                audio.src = '';
+                source.disconnect();
+            }
+            
+            audio = new Audio(url);
+            audio.crossOrigin = 'anonymous';
+            
+            source = audioContext.createMediaElementSource(audio);
+            
+            source.connect(analyser);
+            analyser.connect(audioContext.destination);
+            
+            const volumeValue = Math.max(0, Math.min(100, document.getElementById('volume-slider').value));
+            audio.volume = Math.max(0, Math.min(1, volumeValue));
+            
+            document.getElementById('play-btn').disabled = false;
+            document.getElementById('progress-bar').disabled = false;
+            
+            audio.addEventListener('loadedmetadata', () => {
+                document.getElementById('duration').textContent = formatTime(audio.duration);
+            });
+            
+            audio.addEventListener('timeupdate', () => {
+                const progress = (audio.currentTime / audio.duration) * 100;
+                document.getElementById('progress-bar').value = progress;
+                document.getElementById('current-time').textContent = formatTime(audio.currentTime);
+            });
+            
+            audio.addEventListener('ended', () => {
+                isPlaying = false;
+                document.getElementById('play-btn').innerHTML = '<i class="fa fa-play"></i>';
+            });
+            
+            audio.play().then(() => {
+                isPlaying = true;
+                document.getElementById('play-btn').innerHTML = '<i class="fa fa-pause"></i>';
+                
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+            }).catch(error => {
+                console.error('Error playing audio:', error);
+            });
+        }
+
+        function togglePlayPause() {
+            if (!audio) return;
+            
+            if (isPlaying) {
+                audio.pause();
+                isPlaying = false;
+                document.getElementById('play-btn').innerHTML = '<i class="fa fa-play"></i>';
+            } else {
+                audio.play().then(() => {
+                    isPlaying = true;
+                    document.getElementById('play-btn').innerHTML = '<i class="fa fa-pause"></i>';
+                    
+                    if (audioContext.state === 'suspended') {
+                        audioContext.resume();
+                    }
+                }).catch(error => {
+                    console.error('Error playing audio:', error);
+                });
+            }
+        }
+
+        function stopCurrentAudio() {
+            if (audio) {
+                audio.pause();
+                audio.src = '';
+            }
+            if (source) {
+                source.disconnect();
+            }
+            
+            stopLiveCapture();
+            
+            isPlaying = false;
+            document.getElementById('play-btn').innerHTML = '<i class="fa fa-play"></i>';
+        }
+        
+        async function startLiveCapture(sourceType) {
+            try {
+                let constraints;
+                
+                if (sourceType === 'microphone') {
+                    constraints = { audio: true };
+                } else if (sourceType === 'system') {
+                    constraints = {
+                        audio: {
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false
+                        },
+                        video: true
+                    };
+                }
+                
+                if (sourceType === 'system') {
+                    mediaStream = await navigator.mediaDevices.getDisplayMedia(constraints);
+                } else {
+                    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                }
+                
+                streamSource = audioContext.createMediaStreamSource(mediaStream);
+                
+                streamSource.connect(analyser);
+                
+                isLiveSource = true;
+                isPlaying = true;
+                
+                document.getElementById('start-live-btn').classList.add('hidden');
+                document.getElementById('stop-live-btn').classList.remove('hidden');
+                document.getElementById('play-btn').innerHTML = '<i class="fa fa-pause"></i>';
+                document.getElementById('play-btn').disabled = true;
+                
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                
+            } catch (error) {
+                console.error('Error starting live capture:', error);
+                alert('Failed to start audio capture. Please check permissions.');
+            }
+        }
+        
+        function stopLiveCapture() {
+            if (streamSource) {
+                streamSource.disconnect();
+                streamSource = null;
+            }
+            
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            
+            isLiveSource = false;
+            isPlaying = false;
+            
+            document.getElementById('start-live-btn').classList.remove('hidden');
+            document.getElementById('stop-live-btn').classList.add('hidden');
+            document.getElementById('play-btn').innerHTML = '<i class="fa fa-play"></i>';
+        }
+        
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            seconds = Math.floor(seconds % 60);
+            return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        }
+
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
